@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { writeAudit } from '../utils/audit.js';
-import { getClientMeta } from '../utils/request.js';
+import { getClientMeta, parseSince } from '../utils/request.js';
 import { normalizeName, toDigits, isValidPhone } from '../utils/validators.js';
 import logger from '../utils/logger.js';
 
@@ -16,10 +16,11 @@ function validatePassword(pw) {
 }
 
 export const listUsers = asyncHandler(async (req, res) => {
-  const { rows } = await query(
-    `SELECT id, name, phone, active, created_at, updated_at
-     FROM users ORDER BY name`,
-  );
+  const since = parseSince(req);
+  const base = since
+    ? `SELECT id, name, phone, active, created_at, updated_at FROM users WHERE updated_at > $1 ORDER BY name`
+    : `SELECT id, name, phone, active, created_at, updated_at FROM users ORDER BY name`;
+  const { rows } = await query(base, since ? [since] : []);
   res.json({ users: rows.map((u) => ({ ...u, phone_digits: toDigits(u.phone) })) });
 });
 

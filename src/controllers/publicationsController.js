@@ -1,14 +1,23 @@
 import { query, withTransaction } from '../db.js';
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { writeAudit } from '../utils/audit.js';
-import { getClientMeta } from '../utils/request.js';
+import { getClientMeta, parseSince } from '../utils/request.js';
 import { normalizeName, normalizeCode, isValidStatus, validateMovement } from '../utils/validators.js';
 import logger from '../utils/logger.js';
 
 function buildListQuery(filters) {
-  const where = ['p.deleted_at IS NULL'];
+  const where = [];
   const params = [];
   let i = 1;
+
+  const since = parseSince({ query: filters });
+  if (since) {
+    // Sync incremental: traz apenas o que foi criado/alterado OU excluido (soft delete) desde o cursor.
+    where.push(`(p.updated_at > $${i++} OR p.deleted_at > $${i++})`);
+    params.push(since, since);
+  } else {
+    where.push('p.deleted_at IS NULL');
+  }
 
   if (filters.name) { where.push(`p.name ILIKE $${i++}`); params.push(`%${filters.name}%`); }
   if (filters.code) { where.push(`p.code ILIKE $${i++}`); params.push(`%${filters.code}%`); }

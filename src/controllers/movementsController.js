@@ -1,7 +1,7 @@
 import { query, withTransaction } from '../db.js';
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { writeAudit } from '../utils/audit.js';
-import { getClientMeta } from '../utils/request.js';
+import { getClientMeta, parseSince } from '../utils/request.js';
 import { validateMovement } from '../utils/validators.js';
 
 export const listMovements = asyncHandler(async (req, res) => {
@@ -13,10 +13,14 @@ export const listMovements = asyncHandler(async (req, res) => {
   const params = [id];
   if (req.query.type) params.push(req.query.type);
 
+  const since = parseSince(req);
+  let sinceFilter = '';
+  if (since) { sinceFilter = `AND sm.created_at > $${params.length + 1}`; params.push(since); }
+
   const { rows } = await query(
     `SELECT sm.*, u.name AS user_name FROM stock_movements sm
      LEFT JOIN users u ON u.id = sm.user_id
-     WHERE sm.publication_id = $1 ${typeFilter}
+     WHERE sm.publication_id = $1 ${typeFilter} ${sinceFilter}
      ORDER BY sm.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset],
   );

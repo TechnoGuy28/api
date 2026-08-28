@@ -1,14 +1,21 @@
 import { query } from '../db.js';
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { writeAudit } from '../utils/audit.js';
-import { getClientMeta } from '../utils/request.js';
+import { getClientMeta, parseSince } from '../utils/request.js';
 import { normalizeName } from '../utils/validators.js';
 
 export const listCategories = asyncHandler(async (req, res) => {
-  const { rows } = await query(
-    `SELECT c.*, (SELECT COUNT(*) FROM publications p WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS publications_count
-     FROM categories c ORDER BY c.name`,
-  );
+  const since = parseSince(req);
+  const rows = since
+    ? await query(
+        `SELECT c.*, (SELECT COUNT(*) FROM publications p WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS publications_count
+         FROM categories c WHERE c.updated_at > $1 ORDER BY c.name`,
+        [since],
+      ).then((r) => r.rows)
+    : (await query(
+        `SELECT c.*, (SELECT COUNT(*) FROM publications p WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS publications_count
+         FROM categories c ORDER BY c.name`,
+      )).rows;
   res.json({ categories: rows });
 });
 

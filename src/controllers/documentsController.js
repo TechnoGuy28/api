@@ -1,7 +1,7 @@
 import { query } from '../db.js';
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { writeAudit } from '../utils/audit.js';
-import { getClientMeta } from '../utils/request.js';
+import { getClientMeta, parseSince } from '../utils/request.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
@@ -10,11 +10,16 @@ const VALID_KINDS = ['general', 'monthly', 'dashboard', 'publications', 'audit']
 
 // Lista os documentos PDF gerados (historico), mais recentes primeiro.
 export const listDocuments = asyncHandler(async (req, res) => {
+  const since = parseSince(req);
+  const where = since ? `WHERE d.generated_at > $1` : '';
+  const params = since ? [since] : [];
   const { rows } = await query(
     `SELECT d.*, u.name AS generated_by_name
      FROM generated_pdfs d
      LEFT JOIN users u ON u.id = d.generated_by
+     ${where}
      ORDER BY d.generated_at DESC`,
+    params,
   );
   res.json({ documents: rows });
 });
