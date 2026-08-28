@@ -101,3 +101,19 @@ CREATE TABLE IF NOT EXISTS monthly_reports (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_reports_month ON monthly_reports (reference_month, type);
 CREATE INDEX IF NOT EXISTS idx_reports_generated ON monthly_reports (generated_at);
+
+-- ============================ GENERATED_PDFS ============================
+-- Historico de documentos PDF gerados pelo sistema (relatorio geral, mensal,
+-- dashboard, publicacoes, auditoria). O arquivo fisico fica no host PHP
+-- (storage/reports); a API apenas registra a referencia para visualizacao/exclusao.
+CREATE TABLE IF NOT EXISTS generated_pdfs (
+    id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    kind             VARCHAR(40)  NOT NULL,
+    title            VARCHAR(160) NOT NULL,
+    file_path        VARCHAR(255) NOT NULL,
+    reference_period VARCHAR(20),
+    generated_by      BIGINT       REFERENCES users(id) ON DELETE SET NULL,
+    generated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_generated_pdfs_kind ON generated_pdfs (kind);
+CREATE INDEX IF NOT EXISTS idx_generated_pdfs_generated ON generated_pdfs (generated_at DESC);
