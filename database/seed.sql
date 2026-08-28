@@ -1,6 +1,6 @@
 -- Seed inicial do banco. Cria uma categoria padrao e um usuario administrador.
 -- A senha abaixo e temporaria: altere no primeiro acesso.
--- Senha do exemplo: "admin123" (bcrypt gerado de forma determinista apenas para seed).
+-- Senha do exemplo: "admin123" (hash bcrypt de admin123, verificada com bcrypt.compareSync).
 
 INSERT INTO categories (name, active)
 SELECT 'Geral', TRUE
@@ -13,8 +13,8 @@ DECLARE
     v_hash TEXT;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM users WHERE LOWER(name) = 'admin') THEN
-        -- hash bcrypt de "admin123" (custo 10)
-        v_hash := '$2a$10$P8YUKRC5GmVUftxthBlqROSCBJY7pxOXJc4dLmgbVWC.rkKz.r5E6';
+        -- hash bcrypt valido de "admin123" (custo 10)
+        v_hash := '$2a$10$jj/PF40JjOyi/HKd4S2Uxe/oC6/TNP3lCWjpFlQuiW4uKFi.2dUuW';
         INSERT INTO users (name, password_hash, phone, active)
         VALUES ('admin', v_hash, NULL, TRUE);
     END IF;
