@@ -18,8 +18,8 @@ function validatePassword(pw) {
 export const listUsers = asyncHandler(async (req, res) => {
   const since = parseSince(req);
   const base = since
-    ? `SELECT id, name, phone, active, created_at, updated_at FROM users WHERE updated_at > $1 ORDER BY name`
-    : `SELECT id, name, phone, active, created_at, updated_at FROM users ORDER BY name`;
+    ? `SELECT id, name, phone, active, created_at, updated_at FROM users WHERE updated_at > $1 ORDER BY updated_at DESC`
+    : `SELECT id, name, phone, active, created_at, updated_at FROM users ORDER BY updated_at DESC`;
   const { rows } = await query(base, since ? [since] : []);
   res.json({ users: rows.map((u) => ({ ...u, phone_digits: toDigits(u.phone) })) });
 });

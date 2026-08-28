@@ -9,11 +9,11 @@ export const listReports = asyncHandler(async (req, res) => {
   const since = parseSince(req);
   const where = since ? `WHERE r.generated_at > $1` : '';
   const params = since ? [since] : [];
-  const { rows } = await query(
+   const { rows } = await query(
     `SELECT r.*, u.name AS generated_by_name FROM monthly_reports r
      LEFT JOIN users u ON u.id = r.generated_by
      ${where}
-     ORDER BY r.reference_month DESC`,
+     ORDER BY r.generated_at DESC`,
     params,
   );
   res.json({ reports: rows });

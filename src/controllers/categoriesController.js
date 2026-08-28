@@ -9,12 +9,12 @@ export const listCategories = asyncHandler(async (req, res) => {
   const rows = since
     ? await query(
         `SELECT c.*, (SELECT COUNT(*) FROM publications p WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS publications_count
-         FROM categories c WHERE c.updated_at > $1 ORDER BY c.name`,
+         FROM categories c WHERE c.updated_at > $1 ORDER BY c.updated_at DESC`,
         [since],
       ).then((r) => r.rows)
     : (await query(
         `SELECT c.*, (SELECT COUNT(*) FROM publications p WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS publications_count
-         FROM categories c ORDER BY c.name`,
+         FROM categories c ORDER BY c.updated_at DESC`,
       )).rows;
   res.json({ categories: rows });
 });

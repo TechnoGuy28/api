@@ -31,8 +31,9 @@ function buildListQuery(filters) {
     quantity_desc: 'p.quantity DESC',
     name: 'p.name ASC',
     code: 'p.code ASC',
+    recent: 'p.updated_at DESC',
   };
-  const orderBy = sortMap[filters.sort] || 'p.name ASC';
+  const orderBy = sortMap[filters.sort] || 'p.updated_at DESC';
 
   const sql = `
     SELECT p.id, p.name, p.code, p.category_id, c.name AS category_name,
