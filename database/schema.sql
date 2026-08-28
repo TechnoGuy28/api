@@ -117,3 +117,26 @@ CREATE TABLE IF NOT EXISTS generated_pdfs (
 );
 CREATE INDEX IF NOT EXISTS idx_generated_pdfs_kind ON generated_pdfs (kind);
 CREATE INDEX IF NOT EXISTS idx_generated_pdfs_generated ON generated_pdfs (generated_at DESC);
+
+-- ============================ CLOSINGS ============================
+-- Fechamento de estoque: a cada fechamento (ex.: ao gerar o relatorio mensal)
+-- armazenamos o saldo de cada publicacao NAQUELE momento. Isso permite que os
+-- relatorios apresentem "saldo anterior" (apos o fechamento anterior) e o
+-- "ultimo fechamento" com data/hora exatos.
+CREATE TABLE IF NOT EXISTS closings (
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    reference_month VARCHAR(7),
+    closed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    generated_by    BIGINT      REFERENCES users(id) ON DELETE SET NULL,
+    type            VARCHAR(20) NOT NULL DEFAULT 'monthly'
+                    CHECK (type IN ('monthly', 'manual'))
+);
+CREATE INDEX IF NOT EXISTS idx_closings_closed ON closings (closed_at DESC);
+
+CREATE TABLE IF NOT EXISTS closing_items (
+    closing_id     BIGINT       NOT NULL REFERENCES closings(id) ON DELETE CASCADE,
+    publication_id BIGINT       NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+    quantity       INTEGER      NOT NULL DEFAULT 0,
+    PRIMARY KEY (closing_id, publication_id)
+);
+CREATE INDEX IF NOT EXISTS idx_closing_items_pub ON closing_items (publication_id);

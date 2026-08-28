@@ -16,6 +16,7 @@ import auditRoutes from './routes/audit.js';
 import settingsRoutes from './routes/settings.js';
 import reportRoutes from './routes/reports.js';
 import documentRoutes from './routes/documents.js';
+import closingRoutes from './routes/closings.js';
 import { initDatabase } from './db/init.js';
 
 dotenv.config();
@@ -49,6 +50,7 @@ app.use('/audit', auditRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/reports', reportRoutes);
 app.use('/documents', documentRoutes);
+app.use('/closings', closingRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

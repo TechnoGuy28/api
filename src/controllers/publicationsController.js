@@ -158,4 +158,31 @@ export const deactivatePublication = asyncHandler(async (req, res) => {
   res.json({ publication: rows[0] });
 });
 
-export default { listPublications, getPublication, createPublication, updatePublication, deactivatePublication };
+// Totais de movimentacao por publicacao desde um cursor (?since=).
+// Usado pelos relatorios para calcular entradas/saidas de um periodo de fechamento.
+export const stockSummary = asyncHandler(async (req, res) => {
+  const since = parseSince(req);
+  const params = since ? [since] : [];
+  const where = since ? `WHERE sm.created_at > $1` : '';
+  const { rows } = await query(
+    `SELECT sm.publication_id AS publication_id,
+            SUM(CASE WHEN sm.type = 'in' THEN sm.quantity ELSE 0 END) AS entries,
+            SUM(CASE WHEN sm.type = 'out' THEN sm.quantity ELSE 0 END) AS exits,
+            SUM(CASE WHEN sm.type = 'adjust' THEN sm.quantity ELSE 0 END) AS adjustments
+     FROM stock_movements sm
+     ${where}
+     GROUP BY sm.publication_id`,
+    params,
+  );
+  const summary = {};
+  for (const r of rows) {
+    summary[String(r.publication_id)] = {
+      entries: Number(r.entries) || 0,
+      exits: Number(r.exits) || 0,
+      adjustments: Number(r.adjustments) || 0,
+    };
+  }
+  res.json({ summary });
+});
+
+export default { listPublications, getPublication, createPublication, updatePublication, deactivatePublication, stockSummary };

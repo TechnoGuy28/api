@@ -1,7 +1,7 @@
 import { query, withTransaction } from '../db.js';
 import { asyncHandler } from '../middlewares/errorHandler.js';
 import { writeAudit } from '../utils/audit.js';
-import { getClientMeta } from '../utils/request.js';
+import { getClientMeta, parseSince } from '../utils/request.js';
 import logger from '../utils/logger.js';
 
 // Lista relatorios mensais registrados.

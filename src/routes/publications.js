@@ -15,5 +15,6 @@ router.patch('/:id/deactivate', pubCtrl.deactivatePublication);
 router.get('/:id/movements', movCtrl.listMovements);
 router.post('/:id/movements', movCtrl.createMovement);
 router.get('/:id/history/monthly', movCtrl.monthlyHistory);
+router.get('/stock-summary', pubCtrl.stockSummary);
 
 export default router;
