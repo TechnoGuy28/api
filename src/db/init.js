@@ -6,7 +6,7 @@ import { query } from '../db.js';
 import logger from '../utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_DIR = path.resolve(__dirname, '../database');
+const DB_DIR = path.resolve(__dirname, '../../database');
 
 /**
  * Garante que o banco de dados existe.
