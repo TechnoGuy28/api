@@ -161,6 +161,26 @@ export const deactivatePublication = asyncHandler(async (req, res) => {
 
 // Totais de movimentacao por publicacao desde um cursor (?since=).
 // Usado pelos relatorios para calcular entradas/saidas de um periodo de fechamento.
+export const deletePublication = asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows: existing } = await query('SELECT * FROM publications WHERE id = $1', [id]);
+  if (!existing[0]) return res.status(404).json({ error: 'Publicacao nao encontrada.' });
+
+  const result = await withTransaction(async (client) => {
+    // Movimentacoes e closing_items cascateiam (ON DELETE CASCADE).
+    const { rows } = await client.query('DELETE FROM publications WHERE id = $1 RETURNING *', [id]);
+    return rows[0];
+  });
+
+  const { ip, userAgent } = getClientMeta(req);
+  await writeAudit({
+    userId: req.user.id, action: 'delete_publication', entityType: 'publication', entityId: id,
+    oldValues: { name: existing[0].name, code: existing[0].code, quantity: existing[0].quantity },
+    newValues: null, ip, userAgent,
+  });
+  res.json({ ok: true, publication: result });
+});
+
 export const stockSummary = asyncHandler(async (req, res) => {
   const since = parseSince(req);
   const params = since ? [since] : [];
@@ -186,4 +206,4 @@ export const stockSummary = asyncHandler(async (req, res) => {
   res.json({ summary });
 });
 
-export default { listPublications, getPublication, createPublication, updatePublication, deactivatePublication, stockSummary };
+export default { listPublications, getPublication, createPublication, updatePublication, deactivatePublication, deletePublication, stockSummary };
