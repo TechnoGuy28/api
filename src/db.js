@@ -9,6 +9,7 @@ const pool = new pg.Pool({
     ? { rejectUnauthorized: false }
     : undefined,
   max: 10,
+  options: '-c timezone=America/Sao_Paulo',
 });
 
 pool.on('error', (err) => {
