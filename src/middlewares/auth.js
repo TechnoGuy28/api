@@ -13,8 +13,11 @@ export function verifyToken(token) {
 
 /**
  * Middleware de autenticacao via Bearer JWT.
- * Anexa req.user = { id, name } quando valido.
+ * Anexa req.user = { id, name, role } quando valido. Tokens emitidos antes da
+ * coluna de papel existir sao tratados como 'master' (preserva o acesso atual).
  */
+const LEGACY_ROLE = 'master';
+
 export function authMiddleware(req, res, next) {
   const header = req.headers.authorization || '';
   const [scheme, token] = header.split(' ');
@@ -23,7 +26,11 @@ export function authMiddleware(req, res, next) {
   }
   try {
     const decoded = verifyToken(token);
-    req.user = { id: decoded.sub, name: decoded.name };
+    req.user = {
+      id: decoded.sub,
+      name: decoded.name,
+      role: decoded.role || LEGACY_ROLE,
+    };
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token invalido ou expirado.' });

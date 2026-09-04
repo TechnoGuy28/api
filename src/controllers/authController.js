@@ -12,7 +12,7 @@ export const login = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Informe usuario e senha.' });
   }
   const { rows } = await query(
-    'SELECT id, name, password_hash, active FROM users WHERE LOWER(name) = LOWER($1)',
+    'SELECT id, name, password_hash, active, role FROM users WHERE LOWER(name) = LOWER($1)',
     [name],
   );
   const user = rows[0];
@@ -20,15 +20,15 @@ export const login = asyncHandler(async (req, res) => {
     logger.warn('Login falhou', { name });
     return res.status(401).json({ error: 'Usuario ou senha invalidos.' });
   }
-  const token = signToken({ sub: user.id, name: user.name });
+  const token = signToken({ sub: user.id, name: user.name, role: user.role });
   const { ip, userAgent } = getClientMeta(req);
   await writeAudit({ userId: user.id, action: 'login', entityType: 'user', entityId: user.id, ip, userAgent });
-  res.json({ token, user: { id: user.id, name: user.name, phone: null } });
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role, phone: null } });
 });
 
 export const me = asyncHandler(async (req, res) => {
   const { rows } = await query(
-    'SELECT id, name, phone, active FROM users WHERE id = $1',
+    'SELECT id, name, phone, role, active FROM users WHERE id = $1',
     [req.user.id],
   );
   const user = rows[0];

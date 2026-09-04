@@ -43,22 +43,35 @@ test('cria publicacao com estoque inicial', opts, async () => {
   publicationId = res.body.publication.id;
 });
 
-test('movimentacao de saida e entrada atualiza estoque', opts, async () => {
+test('movimentacao expoe e depois sai (exposicao), e entrada soma no estoque', opts, async () => {
+  // 10 em estoque, 0 em exposicao. Expor 4: estoque 6, exposicao 4.
+  const exp = await request(app)
+    .post(`/publications/${publicationId}/movements`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ type: 'to_exposure', quantity: 4 });
+  assert.equal(exp.status, 201);
+  assert.equal(exp.body.current_quantity, 6);
+  assert.equal(exp.body.current_exposure, 4);
+
+  // Saida desconta da exposicao: estoque 6, exposicao 4 -> exposicao 1.
   const out = await request(app)
     .post(`/publications/${publicationId}/movements`)
     .set('Authorization', `Bearer ${token}`)
     .send({ type: 'out', quantity: 3 });
   assert.equal(out.status, 201);
-  assert.equal(out.body.current_quantity, 7);
+  assert.equal(out.body.current_quantity, 6);
+  assert.equal(out.body.current_exposure, 1);
 
+  // Entrada soma no estoque: estoque 11, exposicao 1.
   const inc = await request(app)
     .post(`/publications/${publicationId}/movements`)
     .set('Authorization', `Bearer ${token}`)
     .send({ type: 'in', quantity: 5 });
-  assert.equal(inc.body.current_quantity, 12);
+  assert.equal(inc.body.current_quantity, 11);
+  assert.equal(inc.body.current_exposure, 1);
 });
 
-test('saida maior que estoque e rejeitada', opts, async () => {
+test('saida maior que a exposicao e rejeitada', opts, async () => {
   const res = await request(app)
     .post(`/publications/${publicationId}/movements`)
     .set('Authorization', `Bearer ${token}`)

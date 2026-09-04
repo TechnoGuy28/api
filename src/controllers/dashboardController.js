@@ -8,7 +8,8 @@ export const summary = asyncHandler(async (req, res) => {
     SELECT
       COUNT(*) FILTER (WHERE deleted_at IS NULL) AS total_publications,
       COUNT(*) FILTER (WHERE deleted_at IS NULL AND status = 'active') AS total_active,
-      COALESCE(SUM(quantity) FILTER (WHERE deleted_at IS NULL), 0) AS total_stock
+      COALESCE(SUM(quantity) FILTER (WHERE deleted_at IS NULL), 0) AS total_stock,
+      COALESCE(SUM(exposure_quantity) FILTER (WHERE deleted_at IS NULL), 0) AS total_exposure
     FROM publications
   `);
 
@@ -49,6 +50,7 @@ export const summary = asyncHandler(async (req, res) => {
     total_publications: Number(totals.rows[0].total_publications),
     total_active: Number(totals.rows[0].total_active),
     total_stock: Number(totals.rows[0].total_stock),
+    total_exposure: Number(totals.rows[0].total_exposure),
     entries_month: Number(entriesExits.rows[0].entries_month),
     exits_month: Number(entriesExits.rows[0].exits_month),
     top_entries: topEntries.rows,

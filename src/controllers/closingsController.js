@@ -11,7 +11,7 @@ export const createClosing = asyncHandler(async (req, res) => {
   const type = req.body?.type || 'monthly';
 
   const { rows: pubs } = await query(
-    `SELECT id, quantity FROM publications WHERE deleted_at IS NULL`,
+    `SELECT id, quantity, exposure_quantity FROM publications WHERE deleted_at IS NULL`,
   );
 
   const result = await withTransaction(async (client) => {
@@ -23,9 +23,9 @@ export const createClosing = asyncHandler(async (req, res) => {
     const closing = rows[0];
     for (const p of pubs) {
       await client.query(
-        `INSERT INTO closing_items (closing_id, publication_id, quantity)
-         VALUES ($1, $2, $3)`,
-        [closing.id, p.id, p.quantity],
+        `INSERT INTO closing_items (closing_id, publication_id, quantity, exposure_quantity)
+         VALUES ($1, $2, $3, $4)`,
+        [closing.id, p.id, p.quantity, p.exposure_quantity],
       );
     }
     return closing;
@@ -39,7 +39,8 @@ export const createClosing = asyncHandler(async (req, res) => {
   res.status(201).json({ closing: result, items: pubs });
 });
 
-// Retorna o fechamento mais recente e o mapa de saldos { publication_id: quantity }.
+// Retorna o fechamento mais recente e o mapa de saldos
+// { publication_id: { stock, exposure } }.
 // Se nenhum fechamento existir, devolve { closing: null, items: {} } (os relatorios
 // usam entao um calculo matematico de fallback).
 export const getLastClosing = asyncHandler(async (req, res) => {
@@ -51,11 +52,13 @@ export const getLastClosing = asyncHandler(async (req, res) => {
   }
   const closing = closings[0];
   const { rows: items } = await query(
-    `SELECT publication_id, quantity FROM closing_items WHERE closing_id = $1`,
+    `SELECT publication_id, quantity, exposure_quantity FROM closing_items WHERE closing_id = $1`,
     [closing.id],
   );
   const map = {};
-  for (const it of items) map[String(it.publication_id)] = Number(it.quantity);
+  for (const it of items) {
+    map[String(it.publication_id)] = { stock: Number(it.quantity), exposure: Number(it.exposure_quantity) };
+  }
   res.json({ closing, items: map });
 });
 

@@ -23,12 +23,13 @@ function buildListQuery(filters) {
   if (filters.code) { where.push(`p.code ILIKE $${i++}`); params.push(`%${filters.code}%`); }
   if (filters.category_id) { where.push(`p.category_id = $${i++}`); params.push(Number(filters.category_id)); }
   if (filters.status) { where.push(`p.status = $${i++}`); params.push(filters.status); }
-  if (filters.min_qty !== undefined && filters.min_qty !== '') { where.push(`p.quantity >= $${i++}`); params.push(Number(filters.min_qty)); }
-  if (filters.max_qty !== undefined && filters.max_qty !== '') { where.push(`p.quantity <= $${i++}`); params.push(Number(filters.max_qty)); }
+  // Filtros de quantidade consideram o TOTAL (estoque + exposicao).
+  if (filters.min_qty !== undefined && filters.min_qty !== '') { where.push(`(p.quantity + p.exposure_quantity) >= $${i++}`); params.push(Number(filters.min_qty)); }
+  if (filters.max_qty !== undefined && filters.max_qty !== '') { where.push(`(p.quantity + p.exposure_quantity) <= $${i++}`); params.push(Number(filters.max_qty)); }
 
   const sortMap = {
-    quantity_asc: 'p.quantity ASC',
-    quantity_desc: 'p.quantity DESC',
+    quantity_asc: '(p.quantity + p.exposure_quantity) ASC',
+    quantity_desc: '(p.quantity + p.exposure_quantity) DESC',
     name: 'p.name ASC',
     code: 'p.code ASC',
     recent: 'p.updated_at DESC',
@@ -37,7 +38,7 @@ function buildListQuery(filters) {
 
   const sql = `
     SELECT p.id, p.name, p.code, p.category_id, c.name AS category_name,
-           p.image_path, p.status, p.quantity, p.created_at, p.updated_at,
+           p.image_path, p.status, p.quantity, p.exposure_quantity, p.created_at, p.updated_at,
            COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm
              WHERE sm.publication_id = p.id AND sm.type = 'in'
              AND sm.created_at >= date_trunc('month', now())), 0) AS qty_added_month,
@@ -189,7 +190,8 @@ export const stockSummary = asyncHandler(async (req, res) => {
     `SELECT sm.publication_id AS publication_id,
             SUM(CASE WHEN sm.type = 'in' THEN sm.quantity ELSE 0 END) AS entries,
             SUM(CASE WHEN sm.type = 'out' THEN sm.quantity ELSE 0 END) AS exits,
-            SUM(CASE WHEN sm.type = 'adjust' THEN sm.quantity ELSE 0 END) AS adjustments
+            SUM(CASE WHEN sm.type = 'to_exposure' THEN sm.quantity ELSE 0 END) AS to_exposure,
+            SUM(CASE WHEN sm.type = 'to_stock' THEN sm.quantity ELSE 0 END) AS to_stock
      FROM stock_movements sm
      ${where}
      GROUP BY sm.publication_id`,
@@ -200,7 +202,8 @@ export const stockSummary = asyncHandler(async (req, res) => {
     summary[String(r.publication_id)] = {
       entries: Number(r.entries) || 0,
       exits: Number(r.exits) || 0,
-      adjustments: Number(r.adjustments) || 0,
+      to_exposure: Number(r.to_exposure) || 0,
+      to_stock: Number(r.to_stock) || 0,
     };
   }
   res.json({ summary });

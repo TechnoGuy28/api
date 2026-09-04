@@ -9,11 +9,21 @@ CREATE TABLE IF NOT EXISTS users (
     name          VARCHAR(120) NOT NULL,
     password_hash TEXT          NOT NULL,
     phone         VARCHAR(20),
+    -- Papel de acesso: leitor (somente visualizar/imprimir), master (opera a
+    -- plataforma) e total (unico: conta "Tulio" com todos os privilegios).
+    role          VARCHAR(20)  NOT NULL DEFAULT 'master'
+                    CHECK (role IN ('leitor', 'master', 'total')),
     active        BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_name ON users (LOWER(name));
+
+-- Migracao idempotente para bancos criados antes do papel: adiciona a coluna
+-- se ainda nao existir. Usuarios existentes passam a ser 'master' (mantem o
+-- acesso atual); apenas "Tulio" recebe 'total' (ver seed.sql).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'master'
+    CHECK (role IN ('leitor', 'master', 'total'));
 
 -- ============================ CATEGORIES ============================
 CREATE TABLE IF NOT EXISTS categories (
@@ -36,6 +46,9 @@ CREATE TABLE IF NOT EXISTS publications (
                    CHECK (status IN ('active', 'inactive')),
     quantity     INTEGER      NOT NULL DEFAULT 0
                    CHECK (quantity >= 0),
+    -- Quantidade em exposicao (separada do estoque). O total disponivel e quantity + exposure_quantity.
+    exposure_quantity INTEGER  NOT NULL DEFAULT 0
+                   CHECK (exposure_quantity >= 0),
     created_by   BIGINT       REFERENCES users(id) ON DELETE SET NULL,
     updated_by   BIGINT       REFERENCES users(id) ON DELETE SET NULL,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -48,15 +61,22 @@ CREATE INDEX IF NOT EXISTS idx_publications_status ON publications (status);
 CREATE INDEX IF NOT EXISTS idx_publications_deleted ON publications (deleted_at);
 
 -- ============================ STOCK_MOVEMENTS ============================
+-- Tipos de movimentacao:
+--   'in'           entrada (soma no estoque)
+--   'out'          saida (desconta da exposicao; requer exposicao suficiente)
+--   'to_exposure'  do estoque para a exposicao
+--   'to_stock'     da exposicao para o estoque
 CREATE TABLE IF NOT EXISTS stock_movements (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     publication_id    BIGINT       NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
     user_id           BIGINT       REFERENCES users(id) ON DELETE SET NULL,
     type              VARCHAR(20)  NOT NULL
-                      CHECK (type IN ('in', 'out', 'adjust')),
+                      CHECK (type IN ('in', 'out', 'to_exposure', 'to_stock')),
     quantity          INTEGER      NOT NULL CHECK (quantity > 0),
     previous_quantity INTEGER      NOT NULL,
     resulting_quantity INTEGER     NOT NULL,
+    previous_exposure INTEGER      NOT NULL DEFAULT 0,
+    resulting_exposure INTEGER     NOT NULL DEFAULT 0,
     note              TEXT,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -137,6 +157,33 @@ CREATE TABLE IF NOT EXISTS closing_items (
     closing_id     BIGINT       NOT NULL REFERENCES closings(id) ON DELETE CASCADE,
     publication_id BIGINT       NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
     quantity       INTEGER      NOT NULL DEFAULT 0,
+    exposure_quantity INTEGER   NOT NULL DEFAULT 0,
     PRIMARY KEY (closing_id, publication_id)
 );
 CREATE INDEX IF NOT EXISTS idx_closing_items_pub ON closing_items (publication_id);
+
+-- ==================== MIGRACOES IDEMPOTENTES (bancos existentes) ====================
+-- Adicionam colunas e ajustam constraints sem quebrar instalacoes anteriores.
+
+-- Publicacoes: coluna de exposicao (bancos criados antes da feature).
+ALTER TABLE publications ADD COLUMN IF NOT EXISTS exposure_quantity INTEGER NOT NULL DEFAULT 0
+    CHECK (exposure_quantity >= 0);
+
+-- Movimentacoes: campos de exposicao (antes/depois) para bancos antigos.
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS previous_exposure INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS resulting_exposure INTEGER NOT NULL DEFAULT 0;
+
+-- Fechamentos: saldo de exposicao nos snapshots.
+ALTER TABLE closing_items ADD COLUMN IF NOT EXISTS exposure_quantity INTEGER NOT NULL DEFAULT 0;
+
+-- CHECK de tipo das movimentacoes: remove a versao antiga (com 'adjust') e adiciona a nova.
+-- Aplicar embora o banco ja tenha a constraint nova e seguro (IF EXISTS + sem duplicar).
+DO $$
+BEGIN
+    -- Limpa a constraint antiga se existir (nome gerado automaticamente).
+    ALTER TABLE stock_movements DROP CONSTRAINT IF EXISTS stock_movements_type_check;
+    ALTER TABLE stock_movements ADD CONSTRAINT stock_movements_type_check
+        CHECK (type IN ('in', 'out', 'to_exposure', 'to_stock'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;

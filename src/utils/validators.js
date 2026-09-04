@@ -26,7 +26,12 @@ export function normalizeCode(value) {
 }
 
 export const VALID_STATUS = ['active', 'inactive'];
-export const VALID_MOVEMENT_TYPES = ['in', 'out', 'adjust'];
+// Tipos de movimentacao de estoque/exposicao:
+//   in           -> entrada (soma no estoque)
+//   out          -> saida (desconta da exposicao)
+//   to_exposure  -> do estoque para a exposicao
+//   to_stock     -> da exposicao para o estoque
+export const VALID_MOVEMENT_TYPES = ['in', 'out', 'to_exposure', 'to_stock'];
 
 export function isValidStatus(value) {
   return VALID_STATUS.includes(value);
@@ -52,39 +57,66 @@ export function parseQuantity(value) {
 }
 
 /**
- * Calcula a quantidade resultante de uma movimentacao.
- * in: soma; out: subtrai; adjust: define valor absoluto.
+ * Calcula os contadores resultantes (estoque e exposicao) de uma movimentacao.
+ * Retorna { stock, exposure } com os novos valores.
  */
-export function computeResulting(type, previous, quantity) {
-  if (type === 'in') return previous + quantity;
-  if (type === 'out') return previous - quantity;
-  return quantity; // adjust
+export function computeResulting(type, { stock, exposure }, quantity) {
+  switch (type) {
+    case 'in':
+      return { stock: stock + quantity, exposure };
+    case 'out':
+      return { stock, exposure: exposure - quantity };
+    case 'to_exposure':
+      return { stock: stock - quantity, exposure: exposure + quantity };
+    case 'to_stock':
+      return { stock: stock + quantity, exposure: exposure - quantity };
+    default:
+      return { stock, exposure }; // tipo invalido: mantido (validateMovement recusa antes)
+  }
 }
 
 /**
- * Valida uma movimentacao de estoque segundo as regras de negocio.
+ * Valida uma movimentacao de estoque/exposicao segundo as regras de negocio.
+ * `state` = { stock, exposure } (contadores atuais).
  */
-export function validateMovement({ type, previousQuantity, quantity }) {
+export function validateMovement({ type, state, quantity }) {
   if (!isValidMovementType(type)) {
     return { ok: false, error: 'Tipo de movimentacao invalido.' };
   }
   const q = parseQuantity(quantity);
   if (!q.ok) return q;
 
-  if (previousQuantity === undefined || previousQuantity === null || previousQuantity < 0) {
+  const stock = state?.stock;
+  const exposure = state?.exposure;
+  if (stock === undefined || stock === null || stock < 0) {
     return { ok: false, error: 'Estoque atual invalido.' };
   }
+  if (exposure === undefined || exposure === null || exposure < 0) {
+    return { ok: false, error: 'Exposicao atual invalido.' };
+  }
 
-  if (type === 'out' && q.value > previousQuantity) {
+  if (type === 'out' && q.value > exposure) {
     return {
       ok: false,
-      error: `Saida (${q.value}) maior que o estoque disponivel (${previousQuantity}).`,
+      error: `Exposicao insuficiente: ha ${exposure} em exposicao e a saida e de ${q.value}.`,
+    };
+  }
+  if (type === 'to_exposure' && q.value > stock) {
+    return {
+      ok: false,
+      error: `Estoque insuficiente: ha ${stock} em estoque e a transferencia para exposicao e de ${q.value}.`,
+    };
+  }
+  if (type === 'to_stock' && q.value > exposure) {
+    return {
+      ok: false,
+      error: `Exposicao insuficiente: ha ${exposure} em exposicao e a transferencia para estoque e de ${q.value}.`,
     };
   }
 
-  const resulting = computeResulting(type, previousQuantity, q.value);
-  if (resulting < 0) {
-    return { ok: false, error: 'Operacao resultaria em estoque negativo.' };
+  const resulting = computeResulting(type, { stock, exposure }, q.value);
+  if (resulting.stock < 0 || resulting.exposure < 0) {
+    return { ok: false, error: 'Operacao resultaria em estoque ou exposicao negativo.' };
   }
 
   return { ok: true, value: q.value, resulting };
