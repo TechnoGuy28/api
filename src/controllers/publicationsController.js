@@ -39,6 +39,7 @@ function buildListQuery(filters) {
   const sql = `
     SELECT p.id, p.name, p.code, p.category_id, c.name AS category_name,
            p.image_path, p.status, p.quantity, p.exposure_quantity, p.created_at, p.updated_at,
+           p.deleted_at,
            COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm
              WHERE sm.publication_id = p.id AND sm.type = 'in'
              AND sm.created_at >= date_trunc('month', now())), 0) AS qty_added_month,
@@ -64,16 +65,28 @@ export const listPublications = asyncHandler(async (req, res) => {
 });
 
 export const getPublication = asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const { rows } = await query(
-    `SELECT p.*, c.name AS category_name FROM publications p
+   const id = Number(req.params.id);
+   const { rows } = await query(
+     `SELECT p.id, p.name, p.code, p.category_id, c.name AS category_name,
+            p.image_path, p.status, p.quantity, p.exposure_quantity, p.created_at, p.updated_at,
+            p.deleted_at,
+            COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm
+                      WHERE sm.publication_id = p.id AND sm.type = 'in'
+                      AND sm.created_at >= date_trunc('month', now())), 0) AS qty_added_month,
+            COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm
+                      WHERE sm.publication_id = p.id AND sm.type = 'out'
+                      AND sm.created_at >= date_trunc('month', now())), 0) AS qty_removed_month,
+            (SELECT MAX(sm.created_at) FROM stock_movements sm WHERE sm.publication_id = p.id) AS last_movement_at,
+            (SELECT u.name FROM stock_movements sm JOIN users u ON u.id = sm.user_id
+             WHERE sm.publication_id = p.id ORDER BY sm.created_at DESC LIMIT 1) AS last_updated_by
+     FROM publications p
      LEFT JOIN categories c ON c.id = p.category_id
      WHERE p.id = $1 AND p.deleted_at IS NULL`,
-    [id],
-  );
-  if (!rows[0]) return res.status(404).json({ error: 'Publicacao nao encontrada.' });
-  res.json({ publication: rows[0] });
-});
+     [id],
+   );
+   if (!rows[0]) return res.status(404).json({ error: 'Publicacao nao encontrada.' });
+   res.json({ publication: rows[0] });
+ });
 
 export const createPublication = asyncHandler(async (req, res) => {
   const name = normalizeName(req.body?.name);
