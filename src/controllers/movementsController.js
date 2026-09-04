@@ -67,16 +67,16 @@ export const createMovement = asyncHandler(async (req, res) => {
   });
 
   const { ip, userAgent } = getClientMeta(req);
-  const actionMap = { in: 'stock_in', out: 'stock_out' };
-  await writeAudit({
-    userId: req.user.id,
-    action: actionMap[type] || (type === 'to_exposure' ? 'movement_to_exposure' : 'movement_to_stock'),
-    entityType: 'publication', entityId: id,
-    newValues: {
-      type, quantity: validation.value,
-      resulting: { stock: validation.resulting.stock, exposure: validation.resulting.exposure },
-    }, ip, userAgent,
-  });
+const actionMap = { in: 'estoque_adicionado', out: 'estoque_removido' };
+   await writeAudit({
+     userId: req.user.id,
+     action: actionMap[type] || (type === 'to_exposure' ? 'movimento_para_exposicao' : 'movimento_para_estoque'),
+     entityType: 'publication', entityId: id,
+     newValues: {
+       type, quantity: validation.value,
+       resulting: { stock: validation.resulting.stock, exposure: validation.resulting.exposure },
+     }, ip, userAgent,
+   });
   res.status(201).json({
     movement: result,
     current_quantity: validation.resulting.stock,
